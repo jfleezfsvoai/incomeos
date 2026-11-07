@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IncomeOS · 收入与理财</title>
+<meta name="description" content="多渠道收入、支出、账单、储蓄目标和股息，一个 Web App 看完。">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="color-scheme" content="light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="IncomeOS">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <main class="page" id="page"></main>
+  </div>
+</div>
+<nav class="tabbar" id="tabbar"></nav>
+
+<div class="modal" id="modal"><div class="modal-bg"></div><div class="modal-panel"><div class="grab"></div><div id="modalBody"></div></div></div>
+<div class="dlg" id="dlg"><div class="dlg-box"><p id="dlgMsg"></p><div class="row-btns"><button class="btn" id="dlgNo">取消</button><button class="btn primary" id="dlgYes">确定</button></div></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
