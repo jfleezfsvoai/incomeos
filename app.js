@@ -45,6 +45,10 @@ const P = {
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   download: '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 21h16"/>',
   upload: '<path d="M12 21V9M7 14l5-5 5 5"/><path d="M4 3h16"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  auto: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
+  tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/>',
   spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>'
 };
 
@@ -56,10 +60,11 @@ const TYPES = {
   passive: { name: '被动',   color: '#16A34A', pill: 'ok' }
 };
 const GOAL_COLORS = ['#2045F5', '#7C3AED', '#16A34A', '#EA580C', '#DC2626', '#0891B2'];
+const CAT_COLORS = ['#EA580C', '#2045F5', '#7C3AED', '#0891B2', '#DB2777', '#DC2626', '#65A30D', '#F59E0B', '#16A34A', '#CA8A04', '#0D9488', '#9333EA', '#71717C'];
 function defaults() {
   return {
     v: 1,
-    settings: { name: 'Jeffer', opening: 0, fx: { USD: 4.20, SGD: 3.25 }, passiveGoal: 50, lastBackup: null, demo: false, hideInstall: false },
+    settings: { name: 'Jeffer', theme: 'auto', opening: 0, fx: { USD: 4.20, SGD: 3.25 }, passiveGoal: 50, lastBackup: null, demo: false, hideInstall: false },
     sources: [
       { id: 's1', name: '个人业绩利润', type: 'active', expected: 2000 },
       { id: 's2', name: 'Admin 工作', type: 'active', expected: 1500 },
@@ -92,6 +97,18 @@ let memStore = null;
 function load() { try { const raw = localStorage.getItem(KEY); if (raw) return migrate(JSON.parse(raw)); } catch (e) { if (memStore) return memStore; } return defaults(); }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { memStore = db; } }
 let db = load();
+
+/* ---- 白天 / 黑夜 ---- */
+const darkMQ = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
+const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
+function applyTheme() {
+  const t = db.settings.theme || 'auto';
+  const dark = t === 'dark' || (t === 'auto' && darkMQ && darkMQ.matches);
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', dark ? '#141417' : '#FFFFFF');
+}
+applyTheme();
+if (darkMQ) { const f = () => { if ((db.settings.theme || 'auto') === 'auto') { applyTheme(); render(); } }; darkMQ.addEventListener ? darkMQ.addEventListener('change', f) : darkMQ.addListener(f); }
 try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
 
 const ROUTES = ['home', 'ledger', 'board', 'invest', 'settings'];
@@ -167,11 +184,14 @@ function fieldHtml(f, v) {
     case 'date': return `${lab}<input class="inp" type="date" data-k="${f.key}" value="${esc(val)}">`;
     case 'toggle': return `<label class="tg"><span>${esc(f.label)}</span><input type="checkbox" data-k="${f.key}" ${val ? 'checked' : ''}><i></i></label>`;
     case 'note': return `<p class="note">${f.html}</p>`;
+    case 'grid': return `${lab}<div class="fgrid">${f.items.map(it => `<div><label class="l">${it.color ? `<span class="dot" style="background:${it.color}"></span>` : ''}${esc(it.label)}</label>
+      <input class="inp num" data-k="${it.key}" inputmode="decimal" placeholder="${esc(it.placeholder || '')}" value="${esc(v[it.key] ?? '')}" autocomplete="off">${it.hint ? `<div class="hint ${it.hintCls || ''}">${it.hint}</div>` : ''}</div>`).join('')}</div>`;
     default: return `${lab}<input class="inp" data-k="${f.key}" placeholder="${esc(f.placeholder || '')}" value="${esc(val)}" autocomplete="off">`;
   }
 }
 function openForm(cfg) {
   const v = { ...(cfg.values || {}) }; let first = true;
+  modal.querySelector('.modal-panel').classList.toggle('wide', !!cfg.wide);
   const draw = () => {
     const fields = (typeof cfg.fields === 'function' ? cfg.fields(v) : cfg.fields).filter(Boolean);
     mbody.innerHTML = `<div class="mh"><h3>${esc(cfg.title)}</h3><button class="x" data-close aria-label="关闭">${I(P.x, 16)}</button></div>
@@ -204,16 +224,17 @@ const commit = msg => { save(); render(); if (msg) toast(msg); };
 function txForm(tx, preset = {}) {
   const now = new Date();
   const defDate = state.month === ymOf(now) ? dOf(now) : state.month + '-01';
-  const v = tx ? { ...tx, amount: String(tx.amount), pending: tx.status === 'pending' }
+  const v = tx ? { ...tx, amount: String(tx.amount), pending: tx.status === 'pending', ...preset }
                : { type: 'expense', amount: '', date: defDate, cat: 'food', src: (db.sources[0] || {}).id, note: '', pending: false, ...preset };
   openForm({
-    title: tx ? '编辑记录' : '记一笔', values: v, focus: tx ? null : 'amount',
+    title: tx ? '编辑记录' : '记一笔', values: v, focus: tx || preset.amount ? null : 'amount',
+    bind: (b, v) => bindAddCat(b, id => txForm(tx, { ...v, cat: id })),
     fields: v => [
       { key: 'type', type: 'seg', options: [{ value: 'expense', label: '支出' }, { value: 'income', label: '收入' }] },
       { key: 'amount', type: 'amount', label: '金额 (RM)' },
       v.type === 'income'
         ? { key: 'src', type: 'chips', label: '收入来源', options: db.sources.map(s => ({ value: s.id, label: s.name, color: TYPES[s.type].color })) }
-        : { key: 'cat', type: 'chips', label: '分类', options: db.cats.map(c => ({ value: c.id, label: c.name, color: c.color })) },
+        : { key: 'cat', type: 'chips', label: '分类', options: catOptions() },
       { key: 'date', type: 'date', label: '日期' },
       { key: 'note', type: 'text', label: '备注', placeholder: v.type === 'income' ? '例如：10 月订阅抽成' : '例如：午餐 / Grab' },
       { key: 'pending', type: 'toggle', label: v.type === 'income' ? '待到账（还没收到钱）' : '待付（还没付钱）' }
@@ -233,15 +254,16 @@ function deleteTx(id) {
   db.tx = db.tx.filter(x => x.id !== id);
   if (t && t.billId) { const b = db.bills.find(x => x.id === t.billId); if (b && b.paid) for (const k in b.paid) if (b.paid[k] === id) delete b.paid[k]; }
 }
-function billForm(b) {
+function billForm(b, preset = {}) {
   openForm({
     title: b ? '编辑账单' : '新增固定账单',
-    values: b ? { ...b, amount: String(b.amount), dueDay: String(b.dueDay) } : { name: '', amount: '', dueDay: '1', cat: 'home' },
+    values: b ? { ...b, amount: String(b.amount), dueDay: String(b.dueDay), ...preset } : { name: '', amount: '', dueDay: '1', cat: 'home', ...preset },
+    bind: (el, v) => bindAddCat(el, id => billForm(b, { ...v, cat: id })),
     fields: [
       { key: 'name', label: '名称', placeholder: '例如：房租 / TNB 电费 / Unifi' },
       { key: 'amount', type: 'number', label: '每月金额 (RM)' },
       { key: 'dueDay', type: 'number', label: '每月几号到期 (1–31)' },
-      { key: 'cat', type: 'chips', label: '分类', options: db.cats.map(c => ({ value: c.id, label: c.name, color: c.color })) }
+      { key: 'cat', type: 'chips', label: '分类', options: catOptions() }
     ],
     validate: v => !v.name.trim() ? '请输入名称' : (!(num(v.amount) > 0) ? '请输入金额' : (!(num(v.dueDay) >= 1 && num(v.dueDay) <= 31) ? '到期日要在 1–31' : '')),
     onSave: v => { upsert(db.bills, { id: b ? b.id : uid(), name: v.name.trim(), amount: r2(num(v.amount)), dueDay: Math.round(num(v.dueDay)), cat: v.cat, paid: b ? (b.paid || {}) : {} }); commit('已保存'); },
@@ -306,11 +328,64 @@ function srcForm(s) {
     delText: '删除这个来源？旧记录会保留，但会显示成「收入」。'
   });
 }
-function budgetForm() {
-  const v = {}; db.cats.forEach(c => v[c.id] = db.budgets[c.id] ? String(db.budgets[c.id]) : '');
+function catOptions() { return [...db.cats.map(c => ({ value: c.id, label: c.name, color: c.color })), { value: '__new', label: '+ 新增分类' }]; }
+function bindAddCat(el, back) {
+  const b = el.querySelector('[data-opt="__new"]'); if (!b) return;
+  b.classList.add('add');
+  b.onclick = e => { e.stopPropagation(); catForm(null, back); };
+}
+function catForm(c, back) {
+  const used = c ? db.tx.filter(t => t.cat === c.id).length : 0;
   openForm({
-    title: '每月预算', values: v,
-    fields: [{ type: 'note', key: 'n', html: '每个分类每月最多花多少。留空＝不设预算。' }, ...db.cats.map(c => ({ key: c.id, type: 'number', label: c.name, placeholder: '不设' }))],
+    title: c ? '编辑分类' : '新增支出分类',
+    values: c ? { name: c.name, color: c.color, budget: db.budgets[c.id] ? String(db.budgets[c.id]) : '' } : { name: '', color: CAT_COLORS[db.cats.length % CAT_COLORS.length], budget: '' },
+    fields: [
+      { key: 'name', label: '分类名称', placeholder: '例如：保险 / 宠物 / 旅行 / 素材拍摄' },
+      { key: 'budget', type: 'number', label: '每月预算 (RM，可留空)', placeholder: '不设' },
+      { key: 'color', type: 'chips', label: '颜色', options: CAT_COLORS.map(x => ({ value: x, label: '', color: x })) },
+      c ? { type: 'note', key: 'n', html: `这个分类目前有 ${used} 笔记录。` } : null
+    ],
+    focus: c ? null : 'name',
+    validate: v => { const n = v.name.trim(); if (!n) return '请输入名称'; if (db.cats.some(x => x.name === n && (!c || x.id !== c.id))) return '已经有这个分类'; return ''; },
+    onSave: v => {
+      const id = c ? c.id : 'c' + uid();
+      upsert(db.cats, { id, name: v.name.trim(), color: v.color });
+      const bn = r2(num(v.budget)); if (bn > 0) db.budgets[id] = bn; else delete db.budgets[id];
+      save(); render(); toast(c ? '分类已更新' : `已新增「${v.name.trim()}」`);
+      if (back) { back(id); return false; }
+    },
+    onDelete: c && c.id !== 'other' ? () => {
+      db.cats = db.cats.filter(x => x.id !== c.id);
+      db.tx.forEach(t => { if (t.cat === c.id) t.cat = 'other'; });
+      db.bills.forEach(b => { if (b.cat === c.id) b.cat = 'other'; });
+      delete db.budgets[c.id]; commit('已删除');
+    } : null,
+    delText: `删除「${c ? c.name : ''}」？用到它的 ${used} 笔记录会改成「其他」。`
+  });
+}
+function budgetForm() {
+  const m = state.month, spent = {};
+  db.tx.filter(t => inMonth(t, m) && t.type === 'expense').forEach(t => spent[t.cat] = (spent[t.cat] || 0) + t.amount);
+  const v = {}; db.cats.forEach(c => v[c.id] = db.budgets[c.id] ? String(db.budgets[c.id]) : '');
+  const total = vals => db.cats.reduce((a, c) => a + num(vals[c.id]), 0);
+  openForm({
+    title: '每月预算', values: v, wide: true,
+    fields: [
+      { type: 'note', key: 'n', html: `每个分类每月最多花多少，留空＝不设预算。下面的小字是 ${mLabel(m)} 已经花的。` },
+      { type: 'grid', key: 'g', items: db.cats.map(c => {
+        const s = spent[c.id] || 0, l = num(v[c.id]);
+        return { key: c.id, label: c.name, color: c.color, placeholder: '不设', hint: s ? `已花 ${money0(s)}` : '本月还没花', hintCls: l && s > l ? 'over' : '' };
+      }) }
+    ],
+    footer: `<div class="sumbar"><span>预算合计 / 月</span><b class="num" id="btotal">${money0(total(v))}</b></div>
+      <div class="stack"><button class="btn" data-newcat>${I(P.plus, 15)}新增支出分类</button></div>`,
+    bind: (el, vals) => {
+      el.querySelectorAll('.fgrid input').forEach(inp => inp.addEventListener('input', () => { const t = el.querySelector('#btotal'); if (t) t.textContent = money0(total(vals)); }));
+      el.querySelector('[data-newcat]').onclick = () => {
+        db.cats.forEach(c => { const n = r2(num(vals[c.id])); if (n > 0) db.budgets[c.id] = n; else delete db.budgets[c.id]; }); save();
+        catForm(null, () => budgetForm());
+      };
+    },
     onSave: v => { db.cats.forEach(c => { const n = r2(num(v[c.id])); if (n > 0) db.budgets[c.id] = n; else delete db.budgets[c.id]; }); commit('预算已保存'); }
   });
 }
@@ -699,7 +774,12 @@ function vSettings() {
   const installTxt = isStandalone() ? '<p class="muted">已经装在主屏幕上了。</p>'
     : `<ol class="steps"><li>iPhone：用 <b>Safari</b> 打开这个网址</li><li>点底部的「分享」按钮</li><li>选「添加到主屏幕」，名字保留 IncomeOS</li></ol>
        <p class="note">Android：用 Chrome 打开，会出现「安装」提示，或在右上角菜单选「安装应用」。</p>${deferredPrompt ? '<div class="stack"><button class="btn lg primary" data-act="install">安装到这台设备</button></div>' : ''}`;
-  return ph('设置', '基本资料、收入来源、备份和安装') + `
+  const th = s.theme || 'auto';
+  const catSpent = {}; db.tx.filter(t => inMonth(t, cur) && t.type === 'expense').forEach(t => catSpent[t.cat] = (catSpent[t.cat] || 0) + t.amount);
+  return ph('设置', '外观、基本资料、收入来源、支出分类、备份和安装') + `
+  <div class="card" style="margin-bottom:14px"><div class="card-h">${I(isDark() ? P.moon : P.sun, 16)}外观</div><div class="card-b" style="padding-top:8px">
+    <div class="theme-seg" style="max-width:420px">${[['auto', '跟随系统', P.auto], ['light', '白天', P.sun], ['dark', '黑夜', P.moon]].map(([k, l, ic]) => `<button class="${th === k ? 'on' : ''}" data-act="setTheme" data-id="${k}">${I(ic, 15)}${l}</button>`).join('')}</div>
+    <p class="note">「跟随系统」会跟手机或电脑的深色模式自动切换。右上角的太阳／月亮按钮也可以随时切换。</p></div></div>
   <div class="grid g2">
     <div class="card"><div class="card-h">基本设置</div><div class="card-b" style="padding-top:2px">
       <div class="form-grid">
@@ -719,6 +799,10 @@ function vSettings() {
       ${db.sources.map(x => `<div class="tr t-src2 tap" data-act="src" data-id="${x.id}"><div class="cell-main">${ic(x.name, TYPES[x.type].color)}<div class="t"><div class="t1">${esc(x.name)}</div><div class="t2 m-only">${TYPES[x.type].name}${x.expected ? ' · 预期 ' + money0(x.expected) : ''}</div></div></div>
         <div class="h-m">${typePill(x.type)}</div><div class="h-m ra num muted">${x.expected ? money0(x.expected) : '不固定'}</div><div class="ra amt num">${money0(incBy[x.id] || 0)}</div><div class="ra muted">${I(P.edit, 15)}</div></div>`).join('')}
     </div></div>
+  <div class="card" style="margin-bottom:14px"><div class="card-h">${I(P.tag, 16)}支出分类<span class="sp"></span><button class="btn sm" data-act="budgets">${I(P.edit, 13)}每月预算</button><button class="btn sm primary" data-act="addCat">${I(P.plus, 13)}新增分类</button></div>
+    <div class="card-b"><div class="catgrid">${db.cats.map(c => `<button class="catitem" data-act="cat" data-id="${c.id}"><span class="dot" style="background:${c.color}"></span><span class="t1">${esc(c.name)}</span><small class="num">${db.budgets[c.id] ? money0(db.budgets[c.id]) : (catSpent[c.id] ? money0(catSpent[c.id]) : '')}</small></button>`).join('')}
+      <button class="catitem add" data-act="addCat">${I(P.plus, 14)}新增分类</button></div>
+      <p class="note">点任何一个分类可以改名、换颜色、设预算或删除。右边的金额是每月预算（没设预算的显示本月已花）。</p></div></div>
   <div class="card"><div class="card-h">数据与备份</div><div class="card-b">
     <p class="muted" style="margin-bottom:14px">所有数据只存在这个浏览器里，不会上传到任何地方（GitHub 上只有程序，没有你的数据）。换手机、换浏览器或清除 Safari 数据前，先导出备份。<b style="color:var(--text)">${esc(lb)}</b></p>
     <div class="chipset" style="gap:8px"><button class="btn" data-act="export">${I(P.download, 15)}导出备份 (.json)</button><button class="btn" data-act="import">${I(P.upload, 15)}导入备份</button>
@@ -754,6 +838,7 @@ function renderTopbar() {
     <span class="tb-sp"></span>
     <label class="search">${I(P.search, 15)}<input id="gq" placeholder="搜索记录…" value="${state.tab === 'ledger' ? '' : ''}"><span class="kbd">⌘K</span></label>
     ${showMonth ? `<div class="month"><button data-act="prevM" aria-label="上个月">${I(P.chevL, 16)}</button><span>${mLabel(state.month)}</span><button data-act="nextM" aria-label="下个月">${I(P.chevR, 16)}</button></div>` : ''}
+    <button class="icon-btn" data-act="toggleTheme" aria-label="切换白天/黑夜" title="${isDark() ? '切换到白天' : '切换到黑夜'}">${I(isDark() ? P.sun : P.moon, 17)}</button>
     <button class="btn primary tb-new" data-act="addTx">${I(P.plus, 15)}记一笔</button>
     <button class="icon-btn m-gear" data-act="go" data-id="settings" aria-label="设置">${I(P.gear, 17)}</button>`;
   const gq = $('#gq');
@@ -792,6 +877,9 @@ const ACT = {
   addGoal: () => goalForm(), goal: id => depositForm(db.goals.find(g => g.id === id)),
   addSrc: () => srcForm(), src: id => srcForm(srcById(id)),
   budgets: () => budgetForm(),
+  addCat: () => catForm(), cat: id => catForm(db.cats.find(c => c.id === id)),
+  setTheme: id => { db.settings.theme = id; save(); applyTheme(); render(); },
+  toggleTheme: () => { db.settings.theme = isDark() ? 'light' : 'dark'; save(); applyTheme(); render(); toast(isDark() ? '已切换到黑夜' : '已切换到白天'); },
   addHold: () => holdForm(), hold: id => holdForm(db.holdings.find(h => h.id === id)), addDiv: () => divForm(),
   hideInstall: () => { db.settings.hideInstall = true; commit(); },
   install: async () => { if (!deferredPrompt) return; deferredPrompt.prompt(); try { await deferredPrompt.userChoice; } catch (e) {} deferredPrompt = null; render(); }
