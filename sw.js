@@ -1,10 +1,11 @@
 // IncomeOS service worker — 离线可用。改版后把版本号 +1。
-const CACHE = 'incomeos-v3';
+const CACHE = 'incomeos-v4';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './summary.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

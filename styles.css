@@ -251,6 +251,66 @@ label.l{display:block;color:var(--muted);font-size:12.5px;margin:14px 0 6px;font
 .theme-seg button{flex:1;height:34px;border:0;border-radius:8px;background:none;color:var(--muted);font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
 .theme-seg button.on{background:var(--panel);color:var(--text);box-shadow:0 1px 3px rgba(16,24,40,.12)}
 
+/* 4 栏 KPI */
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.kv .unit{font-size:15px;font-weight:550;color:var(--muted);letter-spacing:0}
+.sm-pill{margin-left:6px;font-size:10px;padding:0 5px;vertical-align:2px}
+.otag{font-size:10px;font-weight:600;color:var(--blue);background:var(--blue-soft);border-radius:4px;padding:0 4px;margin-left:2px}
+.fsec{display:flex;align-items:center;gap:6px;font-weight:650;font-size:13px;margin:16px 0 2px;padding-bottom:6px;border-bottom:1px solid var(--line2)}
+.board{grid-template-columns:repeat(5,minmax(252px,1fr))}
+.bc-f{white-space:nowrap}
+.bc-f>*{flex:none}
+.col.biz{background:color-mix(in srgb,#0D9488 6%,var(--soft))}
+
+/* 流水（MAE 风格） */
+.feed .day-h{position:sticky;top:var(--tbh,56px);z-index:5;display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--soft);border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.feed .day-h:first-child{border-top:0}
+.feed .day-h .d{color:var(--text);font-weight:700;font-size:13.5px}
+.feed .day-h .sp{flex:1}
+.feed .day-h .num{font-weight:600;color:var(--text2)}
+.feed .day-h .in{color:var(--green)}
+.fr{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line2);cursor:pointer}
+.day-h+.fr{border-top:0}
+.fr:hover{background:var(--hover)}
+.fr .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:14px;flex:none}
+.fr .grow{flex:1;min-width:0}
+.fr .t1{font-size:14.5px}
+.fr .fa{font-weight:650;font-size:15px;white-space:nowrap}
+.fr .fa.in{color:var(--green)}
+.fr .fa.pend{opacity:.55}
+
+/* 收入去向 */
+.stack-bar{display:flex;height:16px;border-radius:6px;overflow:hidden;background:var(--line2);gap:2px}
+.stack-bar i{display:block;height:100%;min-width:2px}
+.al-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0 6px}
+.al-sum div{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted);padding:8px 10px;border:1px solid var(--line2);border-radius:10px}
+.al-sum div .dot{width:7px;height:7px}
+.al-sum b{font-size:18px;color:var(--text);letter-spacing:-.02em}
+.al-tbl{margin-top:6px}
+.al-sec{display:flex;align-items:center;gap:8px;padding:10px 0 6px;margin-top:6px;border-bottom:1px solid var(--line2);font-size:13.5px}
+.al-sec .sp{flex:1}
+.al-sec .num{font-weight:650}
+.al-row{display:grid;grid-template-columns:10px minmax(0,1fr) minmax(60px,160px) 96px 54px;gap:10px;align-items:center;padding:7px 0;font-size:13px}
+.al-row .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.al-row .amt{text-align:right}
+.al-bar{height:6px;background:var(--line2);border-radius:99px;overflow:hidden}
+.al-bar i{display:block;height:100%;border-radius:99px}
+.pc{text-align:right;color:var(--muted);width:54px}
+
+/* 今天可以花 */
+.mini-rows{display:grid;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line2)}
+.mini-rows div{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+.mini-rows b{color:var(--text)}
+.warn-list{margin-top:12px;display:grid;gap:6px;font-size:13px;color:var(--red)}
+
+/* 提醒设定 */
+.rem{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:24px}
+.rem .steps li{align-items:flex-start}
+.rem code{font-family:var(--mono);font-size:12px;background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:0 4px}
+.row-in{display:flex;gap:8px}
+.row-in .inp{flex:1;min-width:0}
+.tg-msg{white-space:pre-wrap;background:var(--soft);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:12px 14px;font-size:13.5px;line-height:1.6}
+
 /* ---------- dark theme ---------- */
 [data-theme="dark"]{
   --bg:#09090B; --panel:#141417; --soft:#1A1A1F; --hover:#1E1E24; --active:#25252C;
@@ -287,6 +347,8 @@ html{transition:background .2s}
 /* ---------- tablet ---------- */
 @media (max-width:1180px){
   .board{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rem{grid-template-columns:minmax(0,1fr)}
   .t-hold{grid-template-columns:minmax(0,1.8fr) 80px 110px 80px 64px}
   .t-hold .h-mid{display:none}
 }
@@ -321,6 +383,20 @@ html{transition:background .2s}
   .g3,.g2,.g21{grid-template-columns:minmax(0,1fr)}
   .g3.keep2{grid-template-columns:repeat(2,minmax(0,1fr))}
   .g3.keep2>.card:first-child{grid-column:1/-1}
+  .g4,.g4.m2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .m2 .card-h .ico{display:none}
+  .m2 .card-h{padding:10px 12px;gap:6px;font-size:13.5px}
+  .m2 .card-b{padding:12px}
+  .m2 .kv{font-size:21px}
+  .m2 .kv.md{font-size:19px}
+  .m2 .badge{font-size:10.5px;padding:0 5px}
+  .m2 .ks{font-size:11.5px}
+  .al-sum{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .al-row{grid-template-columns:10px minmax(0,1fr) 84px 46px;gap:8px}
+  .al-row .al-bar{display:none}
+  .pc{width:46px}
+  .fr{padding:12px 14px}
+  .feed .day-h{padding:8px 14px}
   .grid{gap:10px;margin-bottom:10px}
   .kv{font-size:28px}
   .kv.md{font-size:21px}
