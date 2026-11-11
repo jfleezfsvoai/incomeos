@@ -36,9 +36,33 @@ App 里显示的「今天可以花」和这则通知用的是同一份计算（`
 
 ## 数据存在哪里？
 
-所有数据只存在你自己浏览器的 `localStorage` 里，**不会上传**。这个仓库只有程序代码，没有任何个人数据。
+- **没登录**：资料只存在这个浏览器的 `localStorage`。
+- **登录云端同步（Firebase）**：资料存进你自己的 Firestore，手机、电脑、Safari、主屏幕 App 都会自动同步同一份。第一次在某台设备登录时，那台设备上原有的资料会自动合并进云端。
 
-换手机、换浏览器或清除 Safari 数据之前，先到「设置 → 导出备份」。
+这个仓库只有程序代码，没有任何个人资料。
+
+### Firebase 设置（只要做一次）
+
+1. Firebase Console → **Authentication → Sign-in method** → 开启 **Email/Password**
+2. **Firestore Database → Create database**（地区建议选 `asia-southeast1`）
+3. Firestore → **Rules**，换成：
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
+```
+
+4. 在 App 的「设置 → 云端同步」用邮箱注册，其他设备用同一个邮箱登录。
+
+资料结构：`users/{uid}/data/meta`（设置、分类、账单、目标、持仓）和 `users/{uid}/months/{YYYY-MM}`（当月流水）。
+
+> `cloud.js` 里的 Firebase `apiKey` 只是项目识别码，可以公开；真正保护资料的是上面的安全规则（每个人只能读写自己的 `users/{uid}`）。
 
 ## 部署（GitHub Pages）
 
@@ -59,6 +83,7 @@ App 里显示的「今天可以花」和这则通知用的是同一份计算（`
 index.html            页面骨架
 styles.css            样式（亮色；桌面有侧边栏，手机用底部导航）
 app.js                全部逻辑
+cloud.js              Firebase 登录与云端同步
 summary.js            「今天可以花」和早上提醒的计算（App 和 GitHub Actions 共用）
 scripts/              daily-reminder.mjs：早上发 Telegram
 .github/workflows/    daily-reminder.yml：每天 8:07 定时执行
@@ -69,4 +94,4 @@ icons/                App 图标
 
 ## 更新版本
 
-改完代码之后，把 `sw.js` 里的 `CACHE = 'incomeos-v4'` 版本号加 1，手机才会拿到新版本。
+改完代码之后，把 `sw.js` 里的 `CACHE = 'incomeos-v5'` 版本号加 1，手机才会拿到新版本。

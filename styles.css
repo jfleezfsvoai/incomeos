@@ -306,10 +306,22 @@ label.l{display:block;color:var(--muted);font-size:12.5px;margin:14px 0 6px;font
 /* 提醒设定 */
 .rem{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:24px}
 .rem .steps li{align-items:flex-start}
+.steps li>div{min-width:0;flex:1;overflow-wrap:anywhere}
 .rem code{font-family:var(--mono);font-size:12px;background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:0 4px}
 .row-in{display:flex;gap:8px}
 .row-in .inp{flex:1;min-width:0}
 .tg-msg{white-space:pre-wrap;background:var(--soft);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:12px 14px;font-size:13.5px;line-height:1.6}
+
+/* 云端同步 */
+.cloud-btn{position:relative}
+.cloud-btn>i{position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--dim);border:1.5px solid var(--panel)}
+.cloud-btn.ok>i{background:var(--green)} .cloud-btn.busy>i{background:var(--orange)} .cloud-btn.bad>i{background:var(--red)}
+.m-gear.cloud-btn.ok>i{display:none}
+.cloud-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cloud-row .grow{flex:1;min-width:200px}
+.cloud-row .avatar{background:var(--blue-soft);color:var(--blue)}
+pre.code{font-family:var(--mono);font-size:11.5px;line-height:1.5;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;overflow-x:auto;white-space:pre}
+.note a,.rem a{color:var(--blue)}
 
 /* ---------- dark theme ---------- */
 [data-theme="dark"]{
@@ -411,6 +423,7 @@ html{transition:background .2s}
   .m-only{display:block}
   .m-inl{display:inline}
   .m-gear{display:grid}
+  .topbar .cloud-btn:not(.m-gear){display:none}
   .t-src{grid-template-columns:minmax(0,1fr) auto}
   .t-tx{grid-template-columns:minmax(0,1fr) auto}
   .t-hold{grid-template-columns:minmax(0,1fr) auto auto}

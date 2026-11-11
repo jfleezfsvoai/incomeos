@@ -52,6 +52,9 @@ const P = {
   bell: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/>',
   pie: '<path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15 3.4A9 9 0 0 1 20.6 9H15z"/>',
   pig: '<path d="M19 9c1 .6 2 1.8 2 3.5 0 2-1 3-2 3.5V19h-3v-1.5h-5V19H8v-2.2A6 6 0 0 1 5 11.5C5 8 8 5.5 12 5.5c1.6 0 3 .3 4.2 1L19 5v4z"/>',
+  cloud: '<path d="M7 18a5 5 0 0 1-.9-9.9A6 6 0 0 1 17.6 9 4.5 4.5 0 0 1 17 18z"/>',
+  cloudOff: '<path d="M7 18a5 5 0 0 1-.9-9.9A6 6 0 0 1 17.6 9 4.5 4.5 0 0 1 17 18z"/><path d="M3 3l18 18"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
   tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/>',
   spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>'
@@ -105,7 +108,19 @@ function migrate(d) {
 }
 let memStore = null;
 function load() { try { const raw = localStorage.getItem(KEY); if (raw) return migrate(JSON.parse(raw)); } catch (e) { if (memStore) return memStore; } return defaults(); }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { memStore = db; } }
+let applyingRemote = false;
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { memStore = db; }
+  if (!applyingRemote && window.IncomeCloud) window.IncomeCloud.changed();
+}
+const hasContent = d => !!(d.tx.length || d.bills.length || d.goals.length || d.holdings.length);
+/* 示例数据还在时开始记真的资料：先把示例清掉，避免之后「清空」连真的一起删 */
+function ensureReal() {
+  if (!db.settings.demo) return;
+  const keep = { name: db.settings.name, theme: db.settings.theme };
+  db = defaults(); Object.assign(db.settings, keep);
+  setTimeout(() => toast('已清掉示例数据，开始记你自己的'), 1900);
+}
 let db = load();
 
 /* ---- 白天 / 黑夜 ---- */
@@ -255,6 +270,7 @@ function txForm(tx, preset = {}) {
     ],
     validate: v => !(num(v.amount) > 0) ? '请输入金额' : (!v.date ? '请选日期' : (v.type === 'income' && !srcById(v.src) ? '请选收入来源' : '')),
     onSave: v => {
+      if (!tx) ensureReal();
       const rec = { id: tx ? tx.id : uid(), type: v.type, amount: r2(num(v.amount)), date: v.date, note: (v.note || '').trim(), status: v.pending ? 'pending' : 'cleared', ts: (tx && tx.ts) || Date.now() };
       if (v.type === 'income') rec.src = v.src; else rec.cat = v.cat;
       if (tx && tx.billId) rec.billId = tx.billId;
@@ -280,7 +296,7 @@ function billForm(b, preset = {}) {
       { key: 'cat', type: 'chips', label: '分类', options: catOptions() }
     ],
     validate: v => !v.name.trim() ? '请输入名称' : (!(num(v.amount) > 0) ? '请输入金额' : (!(num(v.dueDay) >= 1 && num(v.dueDay) <= 31) ? '到期日要在 1–31' : '')),
-    onSave: v => { upsert(db.bills, { id: b ? b.id : uid(), name: v.name.trim(), amount: r2(num(v.amount)), dueDay: Math.round(num(v.dueDay)), cat: v.cat, paid: b ? (b.paid || {}) : {} }); commit('已保存'); },
+    onSave: v => { if (!b) ensureReal(); upsert(db.bills, { id: b ? b.id : uid(), name: v.name.trim(), amount: r2(num(v.amount)), dueDay: Math.round(num(v.dueDay)), cat: v.cat, paid: b ? (b.paid || {}) : {} }); commit('已保存'); },
     onDelete: b ? () => { db.bills = db.bills.filter(x => x.id !== b.id); commit('已删除'); } : null,
     delText: '删除这个账单？（已记下的付款记录会保留）'
   });
@@ -309,7 +325,7 @@ function goalForm(g) {
       { key: 'color', type: 'chips', label: '颜色', options: GOAL_COLORS.map(c => ({ value: c, label: '', color: c })) }
     ],
     validate: v => !v.name.trim() ? '请输入名称' : (!(num(v.target) > 0) ? '请输入目标金额' : ''),
-    onSave: v => { upsert(db.goals, { id: g ? g.id : uid(), name: v.name.trim(), target: r2(num(v.target)), saved: r2(num(v.saved)), deadline: v.deadline || '', color: v.color, log: g ? (g.log || []) : [] }); commit('已保存'); },
+    onSave: v => { if (!g) ensureReal(); upsert(db.goals, { id: g ? g.id : uid(), name: v.name.trim(), target: r2(num(v.target)), saved: r2(num(v.saved)), deadline: v.deadline || '', color: v.color, log: g ? (g.log || []) : [] }); commit('已保存'); },
     onDelete: g ? () => { db.goals = db.goals.filter(x => x.id !== g.id); commit('已删除'); } : null
   });
 }
@@ -428,7 +444,7 @@ function holdForm(h) {
       { type: 'note', key: 'n', html: '现价要手动更新（在券商 App 看）。USD / SGD 会用「设置」里的汇率换算成 RM。' }
     ],
     validate: v => !v.symbol.trim() ? '请输入代号' : (!(num(v.units) > 0) ? '请输入股数' : (!(num(v.price) > 0) ? '请输入现价' : '')),
-    onSave: v => { upsert(db.holdings, { id: h ? h.id : uid(), symbol: v.symbol.trim().toUpperCase(), name: v.name.trim(), group: v.group, cur: v.cur, units: num(v.units), cost: num(v.cost) || num(v.price), price: num(v.price), dps: num(v.dps) }); commit('已保存'); },
+    onSave: v => { if (!h) ensureReal(); upsert(db.holdings, { id: h ? h.id : uid(), symbol: v.symbol.trim().toUpperCase(), name: v.name.trim(), group: v.group, cur: v.cur, units: num(v.units), cost: num(v.cost) || num(v.price), price: num(v.price), dps: num(v.dps) }); commit('已保存'); },
     onDelete: h ? () => { db.holdings = db.holdings.filter(x => x.id !== h.id); commit('已删除'); } : null
   });
 }
@@ -443,6 +459,7 @@ function divForm() {
     ],
     validate: v => !(num(v.amount) > 0) ? '请输入金额' : '',
     onSave: v => {
+      ensureReal();
       if (!srcById('div')) db.sources.push({ id: 'div', name: '股息', type: 'passive', expected: 0 });
       const h = db.holdings.find(x => x.id === v.hold);
       db.tx.push({ id: uid(), type: 'income', amount: r2(num(v.amount)), date: v.date, src: 'div', note: h ? `${h.name || h.symbol} 股息` : '股息', status: 'cleared', ts: Date.now() });
@@ -482,12 +499,13 @@ function importData() {
   inp.click();
 }
 async function wipeAll() {
-  if (!(await ask('清空所有记录、账单、目标和持仓？这个动作不能撤回。', '清空'))) return;
+  const cs = window.IncomeCloud && IncomeCloud.state();
+  if (!(await ask(cs && cs.user ? '清空所有记录、账单、目标和持仓？已登录云端，云端和所有设备上的资料也会一起清空，不能撤回。' : '清空所有记录、账单、目标和持仓？这个动作不能撤回。', '清空'))) return;
   const name = db.settings.name;
   db = defaults(); db.settings.name = name; save(); state.month = ymOf(new Date()); go('home'); toast('已清空');
 }
 async function loadDemo() {
-  if (db.tx.length && !db.settings.demo && !(await ask('载入示例会覆盖你现在的数据，继续？', '载入'))) return;
+  if (hasContent(db) && !db.settings.demo) { toast('你已经有自己的资料，示例数据只能在空白时看'); return; }
   const d = defaults(); d.settings.demo = true; d.settings.opening = 15000; d.settings.name = db.settings.name;
   const now = new Date(), cur = ymOf(now);
   const rnd = (a, b) => r2(a + Math.random() * (b - a));
@@ -594,6 +612,25 @@ async function syncNow(manual) {
   } finally { syncing = false; }
 }
 
+/* ================= 给 cloud.js 用的接口 ================= */
+window.IncomeApp = {
+  getData: () => db,
+  replaceData(d, note) {
+    applyingRemote = true;
+    try { db = migrate(d); save(); applyTheme(); } finally { applyingRemote = false; }
+    if (!modal.classList.contains('open')) render(); else renderShellOnly();
+    if (note) toast(note);
+  },
+  refreshCloud() { if (state.tab === 'settings' && !modal.classList.contains('open') && !document.activeElement.closest('#cloudCard')) render(); else renderShellOnly(); }
+};
+const cloudState = () => (window.IncomeCloud ? IncomeCloud.state() : null);
+function cloudBadge() {
+  const c = cloudState();
+  if (!c) return { cls: 'off', label: '云端未连接' };
+  if (!c.user) return { cls: 'off', label: '未登录云端' };
+  return { synced: { cls: 'ok', label: '已同步' }, syncing: { cls: 'busy', label: '同步中…' }, offline: { cls: 'busy', label: '离线（恢复网络后同步）' }, error: { cls: 'bad', label: '同步出错' } }[c.status] || { cls: 'busy', label: '连接中…' };
+}
+
 /* ================= install ================= */
 let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; render(); });
@@ -607,8 +644,11 @@ function banners() {
   if (!isStandalone() && !db.settings.hideInstall && (deferredPrompt || isIOS)) {
     h += `<div class="banner info">${I(P.phone, 16)}<span class="g">${deferredPrompt ? '把 IncomeOS 装到主屏幕，像 App 一样全屏打开、离线也能用。' : '用 Safari 打开，点「分享」→「添加到主屏幕」，就能像 App 一样用。'}</span>${deferredPrompt ? '<button data-act="install">安装</button>' : ''}<button data-act="hideInstall" aria-label="关闭">${I(P.x, 14)}</button></div>`;
   }
+  const cs = cloudState();
+  if (cs && !cs.user && hasContent(db) && !db.settings.demo) h += `<div class="banner warn">${I(P.cloudOff, 16)}<span class="g">资料现在只存在这个浏览器里。<b>登录云端同步</b>，换手机、换浏览器都不会不见。</span><button data-act="go" data-id="settings">去登录</button></div>`;
+  if (cs && cs.user && cs.status === 'error') h += `<div class="banner warn">${I(P.cloudOff, 16)}<span class="g">云端同步出错：${esc(cs.error)}</span><button data-act="go" data-id="settings">查看</button></div>`;
   const lb = db.settings.lastBackup, days = lb ? Math.floor((Date.now() - new Date(lb).getTime()) / 864e5) : null;
-  if (!db.settings.demo && db.tx.length >= 20 && (days === null || days >= 14)) h += `<div class="banner warn">${I(P.download, 16)}<span class="g">${days === null ? '还没备份过' : `已经 ${days} 天没备份`}，数据只存在这个浏览器里。</span><button data-act="export">导出备份</button></div>`;
+  if (!db.settings.demo && !(cs && cs.user) && db.tx.length >= 20 && (days === null || days >= 14)) h += `<div class="banner warn">${I(P.download, 16)}<span class="g">${days === null ? '还没备份过' : `已经 ${days} 天没备份`}，数据只存在这个浏览器里。</span><button data-act="export">导出备份</button></div>`;
   return h;
 }
 function ph(title, sub, acts = '', cls = '') {
@@ -960,6 +1000,41 @@ function reminderCard() {
       <div><div class="lbl" style="margin-bottom:8px">明天早上会收到</div><div class="tg-msg">${preview}</div></div>
     </div></div></div>`;
 }
+function cloudCard() {
+  const c = cloudState(), b = cloudBadge();
+  const steps = `<ol class="steps" style="margin-top:4px">
+      <li><div>Firebase Console → <b>Authentication → Sign-in method</b> → 开启 <b>Email/Password</b>。</div></li>
+      <li><div><b>Firestore Database → Create database</b>（地区选 <code>asia-southeast1</code> 新加坡，模式随便选）。</div></li>
+      <li><div>Firestore → <b>Rules</b>，整段换成下面这个，按 Publish：
+        <pre class="code">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == uid;
+    }
+  }
+}</pre></div></li>
+      <li><div>回到这里用邮箱 <b>注册</b>。之后在其他设备用同一个邮箱 <b>登录</b> 就会自动同步。</div></li>
+    </ol>`;
+  if (!c) return `<div class="card" id="cloudCard" style="margin-bottom:14px"><div class="card-h">${I(P.cloud, 16)}云端同步（Firebase）<span class="sp"></span><span class="pill mut">载入中</span></div><div class="card-b"><p class="muted">正在连接 Firebase… 如果一直停在这里，检查网络后重新整理。</p></div></div>`;
+  if (!c.user) return `<div class="card" id="cloudCard" style="margin-bottom:14px"><div class="card-h">${I(P.cloud, 16)}云端同步（Firebase）<span class="sp"></span><span class="pill mut">未登录</span></div>
+    <div class="card-b"><div class="rem">
+      <div><p class="muted" style="margin-bottom:6px">登录后，所有资料会存在你自己的 Firebase，手机、电脑、Safari、主屏幕 App 都看到同一份，换手机也不会不见。<b style="color:var(--text)">第一次登录时，这台设备上的资料会自动合并进云端。</b></p>
+        <label class="l">邮箱</label><input class="inp" id="cl-email" type="email" autocomplete="username" placeholder="you@gmail.com">
+        <label class="l">密码（至少 6 位）</label><input class="inp" id="cl-pw" type="password" autocomplete="current-password" placeholder="••••••">
+        <div class="row-btns" style="margin-top:14px"><button class="btn lg primary" data-act="cloudIn">登录</button><button class="btn lg" data-act="cloudUp">注册新账号</button></div>
+        <p class="note"><a href="#" data-act="cloudReset">忘记密码？</a>　第一次用要先完成「设置 Firebase」的 1–3 步（只要做一次）。</p></div>
+      <div><div class="lbl" style="margin-bottom:8px">第一次设置 Firebase（只要做一次）</div>${steps}</div>
+    </div></div></div>`;
+  const last = c.lastSync ? new Date(c.lastSync) : null;
+  return `<div class="card" id="cloudCard" style="margin-bottom:14px"><div class="card-h">${I(P.cloud, 16)}云端同步（Firebase）<span class="sp"></span><span class="pill ${b.cls === 'ok' ? 'ok' : b.cls === 'bad' ? 'bad' : 'warn'}"><i></i>${b.label}</span></div>
+    <div class="card-b">
+      <div class="cloud-row"><span class="avatar">${I(P.user, 16)}</span><div class="grow"><b>${esc(c.email)}</b><div class="t2">${last ? `上次同步 ${pad(last.getHours())}:${pad(last.getMinutes())} · ` : ''}每次记账都会自动上传，其他设备几秒内就会更新</div></div>
+        <button class="btn" data-act="cloudSync">${I(P.cloud, 15)}立即同步</button><button class="btn" data-act="cloudOut">登出</button></div>
+      ${c.status === 'error' ? `<div class="banner warn" style="margin:14px 0 0">${I(P.cloudOff, 16)}<span class="g">${esc(c.error)}</span></div><details style="margin-top:10px"><summary class="muted" style="cursor:pointer">查看 Firebase 设置步骤</summary>${steps}</details>` : ''}
+    </div></div>`;
+}
 function vSettings() {
   const s = db.settings, cur = state.month;
   const incBy = {}; db.tx.filter(t => inMonth(t, cur) && t.type === 'income' && cleared(t)).forEach(t => incBy[t.src] = (incBy[t.src] || 0) + t.amount);
@@ -969,7 +1044,7 @@ function vSettings() {
        <p class="note">Android：用 Chrome 打开，会出现「安装」提示，或在右上角菜单选「安装应用」。</p>${deferredPrompt ? '<div class="stack"><button class="btn lg primary" data-act="install">安装到这台设备</button></div>' : ''}`;
   const th = s.theme || 'auto';
   const catSpent = {}; db.tx.filter(t => inMonth(t, cur) && t.type === 'expense').forEach(t => catSpent[t.cat] = (catSpent[t.cat] || 0) + t.amount);
-  return ph('设置', '外观、基本资料、收入来源、支出分类、备份和安装') + `
+  return ph('设置', '云端同步、外观、基本资料、收入来源、支出分类、提醒和备份') + cloudCard() + `
   <div class="card" style="margin-bottom:14px"><div class="card-h">${I(isDark() ? P.moon : P.sun, 16)}外观</div><div class="card-b" style="padding-top:8px">
     <div class="theme-seg" style="max-width:420px">${[['auto', '跟随系统', P.auto], ['light', '白天', P.sun], ['dark', '黑夜', P.moon]].map(([k, l, ic]) => `<button class="${th === k ? 'on' : ''}" data-act="setTheme" data-id="${k}">${I(ic, 15)}${l}</button>`).join('')}</div>
     <p class="note">「跟随系统」会跟手机或电脑的深色模式自动切换。右上角的太阳／月亮按钮也可以随时切换。</p></div></div>
@@ -999,7 +1074,7 @@ function vSettings() {
       <button class="catitem add" data-act="addCat" data-id="${sc}">${I(P.plus, 14)}新增</button></div>`).join('')}
       <p class="note">点任何一个分类可以改名、换颜色、改成个人／生意、设预算或删除。右边的金额是每月预算（没设预算的显示本月已花）。生意支出会跟个人支出分开统计。</p></div></div>
   <div class="card"><div class="card-h">数据与备份</div><div class="card-b">
-    <p class="muted" style="margin-bottom:14px">所有数据只存在这个浏览器里，不会上传到任何地方（GitHub 上只有程序，没有你的数据）。换手机、换浏览器或清除 Safari 数据前，先导出备份。<b style="color:var(--text)">${esc(lb)}</b></p>
+    <p class="muted" style="margin-bottom:14px">${cloudState() && cloudState().user ? '已登录云端同步，资料存在你自己的 Firebase。导出备份是额外的保险。' : '还没登录云端：资料只存在这个浏览器里。换手机、换浏览器或清除 Safari 数据前，先导出备份，或登录上面的云端同步。'}GitHub 上只有程序，没有你的资料。<b style="color:var(--text)">${esc(lb)}</b></p>
     <div class="chipset" style="gap:8px"><button class="btn" data-act="export">${I(P.download, 15)}导出备份 (.json)</button><button class="btn" data-act="import">${I(P.upload, 15)}导入备份</button>
       <button class="btn" data-act="demo">${I(P.spark, 15)}载入示例数据</button><button class="btn danger" data-act="wipe">清空所有数据</button></div></div></div>`;
 }
@@ -1013,6 +1088,16 @@ function bindSettings() {
     s.fx.USD = num($('#s-usd').value) || s.fx.USD; s.fx.SGD = num($('#s-sgd').value) || s.fx.SGD;
     commit('设置已保存');
   };
+}
+
+async function cloudAuth(kind) {
+  if (!window.IncomeCloud) { toast('Firebase 还没载入，检查网络'); return; }
+  const e = $('#cl-email').value.trim(), p = $('#cl-pw').value;
+  if (!e || !p) { toast('请填邮箱和密码'); return; }
+  const btn = document.querySelector(kind === 'signIn' ? '[data-act=cloudIn]' : '[data-act=cloudUp]'); if (btn) { btn.disabled = true; btn.textContent = '处理中…'; }
+  const err = await IncomeCloud[kind](e, p);
+  if (err) { toast(err); if (btn) { btn.disabled = false; btn.textContent = kind === 'signIn' ? '登录' : '注册新账号'; } return; }
+  toast(kind === 'signIn' ? '已登录，正在同步…' : '注册成功，正在上传资料…'); render();
 }
 
 /* ================= shell ================= */
@@ -1033,9 +1118,10 @@ function renderTopbar() {
     <span class="tb-sp"></span>
     <label class="search">${I(P.search, 15)}<input id="gq" placeholder="搜索记录…" value="${state.tab === 'ledger' ? '' : ''}"><span class="kbd">⌘K</span></label>
     ${showMonth ? `<div class="month"><button data-act="prevM" aria-label="上个月">${I(P.chevL, 16)}</button><span>${mLabel(state.month)}</span><button data-act="nextM" aria-label="下个月">${I(P.chevR, 16)}</button></div>` : ''}
+    <button class="icon-btn cloud-btn ${cloudBadge().cls}" data-act="go" data-id="settings" title="${cloudBadge().label}" aria-label="${cloudBadge().label}">${I(cloudState() && cloudState().user ? P.cloud : P.cloudOff, 17)}<i></i></button>
     <button class="icon-btn" data-act="toggleTheme" aria-label="切换白天/黑夜" title="${isDark() ? '切换到白天' : '切换到黑夜'}">${I(isDark() ? P.sun : P.moon, 17)}</button>
     <button class="btn primary tb-new" data-act="addTx">${I(P.plus, 15)}记一笔</button>
-    <button class="icon-btn m-gear" data-act="go" data-id="settings" aria-label="设置">${I(P.gear, 17)}</button>`;
+    <button class="icon-btn m-gear cloud-btn ${cloudBadge().cls}" data-act="go" data-id="settings" aria-label="设置">${I(P.gear, 17)}<i></i></button>`;
   const gq = $('#gq');
   gq.onkeydown = e => { if (e.key === 'Enter') { state.q = gq.value; state.filter = 'all'; go('ledger'); } };
 }
@@ -1043,6 +1129,7 @@ function renderTabbar() {
   const t = (id, icon, label) => `<button class="tab ${state.tab === id ? 'on' : ''}" data-act="go" data-id="${id}">${I(icon, 22)}<span>${label}</span></button>`;
   $('#tabbar').innerHTML = t('home', P.home, '总览') + t('ledger', P.list, '账目') + `<div class="fab-w"><button class="fab" data-act="addTx" aria-label="记一笔">${I(P.plus, 24)}</button></div>` + t('board', P.board, '看板') + t('invest', P.trend, '投资');
 }
+function renderShellOnly() { renderSidebar(); renderTopbar(); }
 function render() {
   renderSidebar(); renderTopbar(); renderTabbar();
   $('#page').innerHTML = { home: vHome, ledger: vLedger, board: vBoard, invest: vInvest, settings: vSettings }[state.tab]();
@@ -1076,6 +1163,10 @@ const ACT = {
   addCat: id => { catForm(null); if (id === 'business') { const b = mbody.querySelector('[data-opt="business"]'); if (b) b.click(); } },
   cat: id => catForm(db.cats.find(c => c.id === id)),
   addBizTx: () => txForm(null, { cat: (db.cats.find(c => c.scope === 'business') || {}).id || 'ads' }),
+  cloudIn: () => cloudAuth('signIn'), cloudUp: () => cloudAuth('signUp'),
+  cloudReset: async () => { const e = ($('#cl-email') || {}).value || ''; if (!e.trim()) { toast('先填邮箱'); return; } const err = await IncomeCloud.reset(e.trim()); toast(err || '重设密码的邮件已寄出'); },
+  cloudSync: () => { IncomeCloud.syncNow(); toast('同步中…'); },
+  cloudOut: async () => { if (!(await ask('登出云端？这台设备上的资料会保留，之后可以再登录。', '登出'))) return; await IncomeCloud.signOut(); render(); toast('已登出'); },
   syncConnect: () => { const t = $('#sy-token').value.trim(); if (!t) { toast('先贴 GitHub token'); return; } const c = loadSync(); c.token = t; saveSync(c); syncNow(true); },
   copyGist: async () => { try { await navigator.clipboard.writeText(loadSync().gistId); toast('已复制 GIST_ID'); } catch (e) { toast('复制失败，请手动选取'); } },
   syncOff: async () => { if (!(await ask('断开每日提醒？手机不会再收到最新数字（GitHub 上的 Gist 不会删除）。', '断开'))) return; saveSync({}); render(); toast('已断开'); },
