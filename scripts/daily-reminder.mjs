@@ -21,14 +21,35 @@ const snap = JSON.parse(content);
 const text = globalThis.IncomeSummary.buildMessage(snap, new Date());
 console.log(text);
 
-const tr = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: 'HTML', disable_web_page_preview: true })
+const api = (method, body) => fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {})
 });
+const send = chat => api('sendMessage', { chat_id: chat, text, parse_mode: 'HTML', disable_web_page_preview: true });
+
+const botId = String(TELEGRAM_BOT_TOKEN).split(':')[0];
+let chatId = String(TELEGRAM_CHAT_ID).trim();
+let tr = chatId === botId ? null : await send(chatId);
+
+if (!tr || !tr.ok) {
+  const why = tr ? await tr.text() : 'TELEGRAM_CHAT_ID 填的是 bot 自己的 ID';
+  console.error(`用 TELEGRAM_CHAT_ID 发送失败：${why}`);
+  // 自动找出最近跟 bot 私聊的人（就是你），改发给他，并告诉他正确的 ID
+  const up = await (await api('getUpdates', { limit: 100 })).json();
+  const chats = (up.result || []).map(u => (u.message || u.edited_message || {}).chat).filter(c => c && c.type === 'private');
+  const me = chats[chats.length - 1];
+  if (!me) {
+    console.error('找不到你的私聊记录：请在 Telegram 打开你的 bot，发一句「hi」，再重新 Run workflow。');
+    process.exit(1);
+  }
+  chatId = String(me.id);
+  tr = await send(chatId);
+  if (tr.ok) {
+    await api('sendMessage', { chat_id: chatId, parse_mode: 'HTML',
+      text: `⚙️ 你在 GitHub 填的 TELEGRAM_CHAT_ID 不对（${chatId === botId ? '' : '那是 bot 自己的 ID'}）。\n你本人的 chat id 是：<code>${chatId}</code>\n请到 incomeos → Settings → Secrets and variables → Actions，把 TELEGRAM_CHAT_ID 改成这个数字。` });
+  }
+}
 if (!tr.ok) {
   console.error(`Telegram 发送失败（${tr.status}）：${await tr.text()}`);
-  console.error('常见原因：还没在 Telegram 打开你的 bot 按「Start」，或 TELEGRAM_CHAT_ID 不对。');
   process.exit(1);
 }
 console.log('✅ 已发送到 Telegram');
